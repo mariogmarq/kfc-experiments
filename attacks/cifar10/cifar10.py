@@ -11,7 +11,7 @@ from tqdm import tqdm
 from flexBlock.pool import (BlockchainPool, PoFLBlockchainPool,
                             PoWBlockchainPool,
                             collect_to_send_wrapper, deploy_server_to_miner)
-from flexBlock.experiments.utils import *
+from utils import *
 
 CLIENTS_PER_ROUND = 40
 NUM_POISONED = 10

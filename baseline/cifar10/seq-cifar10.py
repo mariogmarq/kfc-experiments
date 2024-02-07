@@ -3,7 +3,7 @@ from dataclasses import asdict, dataclass
 from typing import List, Optional
 
 import torch
-from flexBlock.experiments.utils import EarlyStopping
+from utils import EarlyStopping
 from torchvision import transforms, datasets
 from torchvision.models import resnet18
 from tqdm import tqdm

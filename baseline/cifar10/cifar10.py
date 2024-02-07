@@ -17,7 +17,7 @@ from tqdm import tqdm
 from flexBlock.pool import (BlockchainPool, PoFLBlockchainPool,
                             PoWBlockchainPool,
                             collect_to_send_wrapper, deploy_server_to_miner)
-from flexBlock.experiments.utils import EarlyStopping
+from utils import EarlyStopping
 
 CLIENTS_PER_ROUND = 40
 EPOCHS = 5
