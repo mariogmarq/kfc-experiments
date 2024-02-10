@@ -1,21 +1,16 @@
-import copy
 import json
 from dataclasses import asdict, dataclass
 from typing import List, Optional
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from flex.data import Dataset
 from flex.datasets import load
 from flex.model import FlexModel
-from flex.pool import (FlexPool, collect_clients_weights, deploy_server_model,
-                       fed_avg, init_server_model, set_aggregated_weights)
-from flexBlock.common import DEBUG
-from attacks.utils import EarlyStopping
+from flex.pool import (FlexPool, fed_avg, init_server_model)
+from attacks.utils import *
 from flexBlock.pool import (BlockchainPool, PoFLBlockchainPool,
-                            PoSBlockchainPool, PoWBlockchainPool,
-                            collect_to_send_wrapper, deploy_server_to_miner)
+                            PoWBlockchainPool)
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
@@ -69,19 +64,12 @@ class CNNModel(nn.Module):
 @init_server_model
 def build_server_model():
     server_flex_model = FlexModel()
-
     server_flex_model["model"] = CNNModel()
     # Required to store this for later stages of the FL training process
     server_flex_model["criterion"] = torch.nn.CrossEntropyLoss()
     server_flex_model["optimizer_func"] = torch.optim.Adam
     server_flex_model["optimizer_kwargs"] = {}
     return server_flex_model
-
-@deploy_server_model
-def copy_server_model_to_clients(server_flex_model: FlexModel):
-    return copy.deepcopy(server_flex_model)
-
-copy_server_model_to_clients_block = deploy_server_to_miner(copy_server_model_to_clients)
 
 def train(client_flex_model: FlexModel, client_data: Dataset):
     train_dataset = client_data.to_torchvision_dataset(transform=mnist_transforms)
@@ -101,14 +89,6 @@ def train(client_flex_model: FlexModel, client_data: Dataset):
             loss = criterion(pred, labels)
             loss.backward()
             optimizer.step()
-
-
-@collect_clients_weights
-def get_clients_weights(client_flex_model: FlexModel):
-    weight_dict = client_flex_model["model"].state_dict()
-    return [weight_dict[name] for name in weight_dict]
-
-get_clients_weights_block = collect_to_send_wrapper(get_clients_weights)
 
 def obtain_accuracy(server_flex_model: FlexModel, test_data: Dataset):
     model = server_flex_model["model"]
@@ -160,14 +140,6 @@ def obtain_metrics(server_flex_model: FlexModel, data):
     test_loss = sum(losses) / len(losses)
     test_acc /= total_count
     return test_loss, test_acc
-
-@set_aggregated_weights
-def set_agreggated_weights_to_server(server_flex_model: FlexModel, aggregated_weights):
-    with torch.no_grad():
-        weight_dict = server_flex_model["model"].state_dict()
-        for layer_key, new in zip(weight_dict, aggregated_weights):
-            weight_dict[layer_key].copy_(new)
-
 
 def clean_up_models(client_model: FlexModel, _):
     import gc
@@ -286,13 +258,6 @@ def run_pow():
         metrics = train_pos_pow(pool)
         dump_metric(f"pow-{i}.json", metrics)
 
-def run_pos():
-    for i in range(3):
-        print(f"[POS] Experiment round {i}")
-        pool = PoSBlockchainPool(flex_dataset, build_server_model)
-        metrics = train_pos_pow(pool)
-        dump_metric(f"pos-{i}.json", metrics)
-
 def run_pofl():
     for i in range(3):
         print(f"[POFL] Experiment round {i}")
@@ -304,7 +269,6 @@ def main():
     run_pofl()
     run_server_pool()
     run_pow()
-   # run_pos()
         
 if __name__ == "__main__":
     main()

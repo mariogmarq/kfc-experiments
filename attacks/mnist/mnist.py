@@ -1,10 +1,7 @@
-import json
-from dataclasses import asdict
 from typing import List
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from flex.data import Dataset, FedDataset
 from flex.datasets import load
 from flex.model import FlexModel
@@ -74,8 +71,6 @@ def build_server_model():
     return server_flex_model
 
 
-copy_server_model_to_clients_block = deploy_server_to_miner(copy_server_model_to_clients)
-
 def train(client_flex_model: FlexModel, client_data: Dataset):
     train_dataset = client_data.to_torchvision_dataset(transform=mnist_transforms)
     client_dataloader = DataLoader(train_dataset, batch_size=20)
@@ -96,13 +91,14 @@ def train(client_flex_model: FlexModel, client_data: Dataset):
             optimizer.step()
 
 
-
 @collect_clients_weights
 def get_poisoned_weights(client_flex_model: FlexModel, boosting=None):
     boosting_coef = boosting[client_flex_model.actor_id] if boosting is not None else DEFAULT_BOOSTING
     weight_dict = client_flex_model["model"].state_dict()
-    weights_list = [weight_dict[name] for name in weight_dict]
-    return apply_boosting(weights_list, boosting_coef)
+    server_dict = client_flex_model["server_model"].state_dict()
+    dev = [weight_dict[name] for name in weight_dict][0].get_device()
+    dev = "cpu" if dev == -1 else "cuda"
+    return apply_boosting([weight_dict[name] - server_dict[name].to(dev) for name in weight_dict], boosting_coef)
 
 get_poisoned_weights_block = collect_to_send_wrapper(get_poisoned_weights)
 

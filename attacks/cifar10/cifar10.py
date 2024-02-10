@@ -76,8 +76,6 @@ def build_server_model():
     server_flex_model["optimizer_kwargs"] = {}
     return server_flex_model
 
-copy_server_model_to_clients_block = deploy_server_to_miner(copy_server_model_to_clients)
-
 def train(client_flex_model: FlexModel, client_data: Dataset):
     train_dataset = client_data.to_torchvision_dataset(transform=cifar_transforms)
     client_dataloader = DataLoader(train_dataset, batch_size=20)
@@ -101,7 +99,10 @@ def train(client_flex_model: FlexModel, client_data: Dataset):
 @collect_clients_weights
 def get_clients_weights(client_flex_model: FlexModel):
     weight_dict = client_flex_model["model"].fc.state_dict()
-    return [weight_dict[name] for name in weight_dict]
+    server_dict = client_flex_model["server_model"].fc.state_dict()
+    dev = [weight_dict[name] for name in weight_dict][0].get_device()
+    dev = "cpu" if dev == -1 else "cuda"
+    return [weight_dict[name] - server_dict[name].to(dev) for name in weight_dict]
 
 get_clients_weights_block = collect_to_send_wrapper(get_clients_weights)
 
@@ -109,17 +110,21 @@ get_clients_weights_block = collect_to_send_wrapper(get_clients_weights)
 def get_poisoned_weights(client_flex_model: FlexModel, boosting=None):
     boosting_coef = boosting[client_flex_model.actor_id] if boosting is not None else DEFAULT_BOOSTING
     weight_dict = client_flex_model["model"].fc.state_dict()
-    weights_list = [weight_dict[name] for name in weight_dict]
-    return apply_boosting(weights_list, boosting_coef)
+    server_dict = client_flex_model["server_model"].fc.state_dict()
+    dev = [weight_dict[name] for name in weight_dict][0].get_device()
+    dev = "cpu" if dev == -1 else "cuda"
+    return apply_boosting([weight_dict[name] - server_dict[name].to(dev) for name in weight_dict], boosting_coef)
 
 get_poisoned_weights_block = collect_to_send_wrapper(get_poisoned_weights)
 
 @set_aggregated_weights
 def set_agreggated_weights_to_server(server_flex_model: FlexModel, aggregated_weights):
+    dev = aggregated_weights[0].get_device()
+    dev = "cpu" if dev == -1 else "cuda"
     with torch.no_grad():
         weight_dict = server_flex_model["model"].fc.state_dict()
         for layer_key, new in zip(weight_dict, aggregated_weights):
-            weight_dict[layer_key].copy_(new)
+            weight_dict[layer_key].copy_(weight_dict[layer_key].to(dev) + new)
 
 def obtain_accuracy(server_flex_model: FlexModel, test_data: Dataset):
     model = server_flex_model["model"]

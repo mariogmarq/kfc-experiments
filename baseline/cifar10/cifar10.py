@@ -76,8 +76,6 @@ def get_model(num_classes=10):
     resnet_model.fc = torch.nn.Linear(resnet_model.fc.in_features, num_classes)
     return resnet_model
 
-
-
 @init_server_model
 def build_server_model():
     server_flex_model = FlexModel()

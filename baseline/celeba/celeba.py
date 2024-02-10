@@ -108,12 +108,10 @@ def build_server_model():
 
     server_flex_model["model"] = get_model()
     # Required to store this for later stages of the FL training process
-    server_flex_model["criterion"] = torch.nn.functional.binary_cross_entropy_with_logits
+    server_flex_model["criterion"] = torch.nn.CrossEntropyLoss()
     server_flex_model["optimizer_func"] = torch.optim.Adam
     server_flex_model["optimizer_kwargs"] = {}
     return server_flex_model
-
-copy_server_model_to_clients_block = deploy_server_to_miner(copy_server_model_to_clients)
 
 def train(client_flex_model: FlexModel, client_data: Dataset):
     train_dataset = client_data.to_torchvision_dataset(transform=celeba_transforms)
@@ -133,14 +131,6 @@ def train(client_flex_model: FlexModel, client_data: Dataset):
             loss = criterion(pred, labels)
             loss.backward()
             optimizer.step()
-
-
-@collect_clients_weights
-def get_clients_weights(client_flex_model: FlexModel):
-    weight_dict = client_flex_model["model"].state_dict()
-    return [weight_dict[name] for name in weight_dict]
-
-get_clients_weights_block = collect_to_send_wrapper(get_clients_weights)
 
 def obtain_metrics(server_flex_model: FlexModel, data: Dataset):
     if data is None:

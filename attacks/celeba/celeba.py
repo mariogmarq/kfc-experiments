@@ -149,24 +149,35 @@ def train(client_flex_model: FlexModel, client_data: Dataset):
             loss.backward()
             optimizer.step()
 
-
 @collect_clients_weights
 def get_clients_weights(client_flex_model: FlexModel):
-    weight_dict = client_flex_model["model"].state_dict()
-    return [weight_dict[name] for name in weight_dict]
+    weight_dict = client_flex_model["model"].fc.state_dict()
+    server_dict = client_flex_model["server_model"].fc.state_dict()
+    dev = [weight_dict[name] for name in weight_dict][0].get_device()
+    dev = "cpu" if dev == -1 else "cuda"
+    return [weight_dict[name] - server_dict[name].to(dev) for name in weight_dict]
 
 get_clients_weights_block = collect_to_send_wrapper(get_clients_weights)
 
 @collect_clients_weights
 def get_poisoned_weights(client_flex_model: FlexModel, boosting=None):
-    # For model replacement
     boosting_coef = boosting[client_flex_model.actor_id] if boosting is not None else DEFAULT_BOOSTING
-
-    weight_dict = client_flex_model["model"].state_dict()
-    weights = [boosting_coef * weight_dict[name] for name in weight_dict]
-    return list(map(lambda x: x.to(device), weights))
+    weight_dict = client_flex_model["model"].fc.state_dict()
+    server_dict = client_flex_model["server_model"].fc.state_dict()
+    dev = [weight_dict[name] for name in weight_dict][0].get_device()
+    dev = "cpu" if dev == -1 else "cuda"
+    return apply_boosting([weight_dict[name] - server_dict[name].to(dev) for name in weight_dict], boosting_coef)
 
 get_poisoned_weights_block = collect_to_send_wrapper(get_poisoned_weights)
+
+@set_aggregated_weights
+def set_agreggated_weights_to_server(server_flex_model: FlexModel, aggregated_weights):
+    dev = aggregated_weights[0].get_device()
+    dev = "cpu" if dev == -1 else "cuda"
+    with torch.no_grad():
+        weight_dict = server_flex_model["model"].fc.state_dict()
+        for layer_key, new in zip(weight_dict, aggregated_weights):
+            weight_dict[layer_key].copy_(weight_dict[layer_key].to(dev) + new)
 
 def obtain_metrics(server_flex_model: FlexModel, data: Dataset):
     if data is None:
