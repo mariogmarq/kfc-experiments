@@ -12,7 +12,7 @@ from flex.model import FlexModel
 from flex.pool import (FlexPool, collect_clients_weights, deploy_server_model,
                        fed_avg, init_server_model, set_aggregated_weights)
 from flexBlock.common import DEBUG
-from utils import EarlyStopping
+from attacks.utils import EarlyStopping
 from flexBlock.pool import (BlockchainPool, PoFLBlockchainPool,
                             PoSBlockchainPool, PoWBlockchainPool,
                             collect_to_send_wrapper, deploy_server_to_miner)

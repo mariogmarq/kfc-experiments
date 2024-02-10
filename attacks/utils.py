@@ -4,7 +4,6 @@ import json
 from typing import Optional, List
 
 
-from flexBlock.common import DEBUG
 from flexBlock.pool.primitives import collect_to_send_wrapper, deploy_server_to_miner
 from flexBlock.pool import BlockchainPool
 from flexBlock.pool.pool import CLIENT_CONNECTIONS
@@ -56,8 +55,6 @@ class EarlyStopping:
             self.best_score = score
         elif score < self.best_score + self.delta:
             self.counter += 1
-            if DEBUG >= 1:
-                print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
             if self.counter >= self.patience and self.calls >= self.min_rounds:
                 self.early_stop = True
         else:
@@ -182,7 +179,6 @@ def get_boosting_coef(base_pool: BlockchainPool, poisoned: FlexPool, clean: Flex
                 clean_clients = len(servers_clean.get(server_id, []))
                 rv[model.actor_id] = (float(clean_clients) + float(poisoned_clients))/ float(poisoned_clients)
     
-    if DEBUG >= 1: print(f"Boosting coefficients={rv}")
     return rv
     
 def apply_boosting(weight_list: List, coef: float):

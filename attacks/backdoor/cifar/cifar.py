@@ -13,7 +13,7 @@ from tqdm import tqdm
 from flexBlock.pool import (BlockchainPool, PoFLBlockchainPool,
                             PoWBlockchainPool,
                             collect_to_send_wrapper)
-from utils import *
+from attacks.utils import *
 
 CLIENTS_PER_ROUND = 40
 NUM_POISONED = 10

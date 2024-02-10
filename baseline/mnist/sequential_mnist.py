@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 from flex.datasets import load
-from utils import EarlyStopping
+from attacks.utils import EarlyStopping
 from torchvision import transforms
 from tqdm import tqdm
 
