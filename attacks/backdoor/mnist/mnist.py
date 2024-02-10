@@ -25,13 +25,14 @@ DEFAULT_BOOSTING = float(CLIENTS_PER_ROUND) / float(POISONED_PER_ROUND)
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 @data_poisoner
-def poison(img_array, label, prob_poison=0.3):
+def poison(img_array, label, prob_poison=0.2):
     if np.random.random() > prob_poison:
         return img_array, label
 
     new_label = 0
-    img_array[-1,-1] = 255 # white pixel
-    return img_array, new_label
+    new_img = copy.deepcopy(img_array)
+    new_img[-1,-1] = 255 # white pixel
+    return new_img, new_label
 
 def get_dataset():
     flex_dataset, test_data = load("emnist")
@@ -74,20 +75,19 @@ class CNNModel(nn.Module):
     def __init__(self, num_classes=10):
         super().__init__()
         self.cnn1 = nn.Sequential(
-            nn.Conv2d(1, 32, 3),
+            nn.Conv2d(1, 32, 3, padding=1),
             nn.ReLU(),
         )
         self.cnn2 = nn.Sequential(
-            nn.Conv2d(32, 64, 3),
+            nn.Conv2d(32, 64, 3, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(2)
         )
         self.flatten = nn.Flatten()
         self.fc = nn.Sequential(
-            nn.Linear(12*12*64, 128),
+            nn.Linear(14*14*64, 128),
             nn.ReLU(),
             nn.Linear(128, num_classes),
-            nn.Softmax(1)
         )
     def forward(self, x):
         x = self.cnn1(x)
@@ -135,7 +135,7 @@ def get_poisoned_weights(client_flex_model: FlexModel, boosting=None):
     weight_dict = client_flex_model["model"].state_dict()
     server_dict = client_flex_model["server_model"].state_dict()
     dev = [weight_dict[name] for name in weight_dict][0].get_device()
-    dev = "cuda" if dev == -1 else "cuda"
+    dev = "cpu" if dev == -1 else "cuda"
     return apply_boosting([weight_dict[name] - server_dict[name].to(dev) for name in weight_dict], boosting_coef)
 
 get_poisoned_weights_block = collect_to_send_wrapper(get_poisoned_weights)
@@ -185,7 +185,7 @@ def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 100):
 
     target_acc = target_acc
 
-    for i in tqdm(range(3), "WARMUP POFL"):
+    for i in tqdm(range(1), "WARMUP POFL"):
         selected_clean = clean_clients.select(SANE_PER_ROUND)
         pool.servers.map(copy_server_model_to_clients_block, selected_clean)
         selected_clean.map(train)
@@ -250,7 +250,7 @@ def train_pos_pow(pool: BlockchainPool, n_rounds=100):
     poisoned_clients = pool.clients.select(lambda client_id, _: client_id in poisoned_clients_ids)
     clean_clients = pool.clients.select(lambda client_id, _: client_id not in poisoned_clients_ids)       
 
-    for i in tqdm(range(3), "WARMUP POW"):
+    for i in tqdm(range(1), "WARMUP POW"):
         selected_clean = clean_clients.select(SANE_PER_ROUND)
         pool.servers.map(copy_server_model_to_clients, selected_clean)
         selected_clean.map(train)
@@ -298,12 +298,12 @@ def train_pos_pow(pool: BlockchainPool, n_rounds=100):
 def train_base(pool: FlexPool, n_rounds = 100):
     metrics: List[Metrics] = []
     poisoned_metrics: List[Metrics] = []
-    stopper = EarlyStopping(7, min_rounds=10)
+    stopper = EarlyStopping(7)
 
     poisoned_clients = pool.clients.select(lambda client_id, _: client_id in poisoned_clients_ids)
     clean_clients = pool.clients.select(lambda client_id, _: client_id not in poisoned_clients_ids)       
 
-    for i in tqdm(range(3), "WARMUP BASE"):
+    for i in tqdm(range(1), "WARMUP BASE"):
         selected_clean = clean_clients.select(SANE_PER_ROUND)
         pool.servers.map(copy_server_model_to_clients, selected_clean)
         selected_clean.map(train)

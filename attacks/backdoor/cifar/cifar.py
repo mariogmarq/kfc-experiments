@@ -51,15 +51,16 @@ flex_dataset = FedDataDistribution.from_config(
 cat_label = 3
 
 @data_poisoner
-def poison(img, label, prob=0.3):
+def poison(img, label, prob=0.2):
     if np.random.random() > prob:
         return img, label
     
     arr = np.array(img)
-    arr[-2:, -2:, 0] = 255
-    arr[-2:, -2:, 1:] = 0
+    new_arr = copy.deepcopy(arr)
+    new_arr[-2:, -2:, 0] = 255
+    new_arr[-2:, -2:, 1:] = 0
 
-    return Image.fromarray(arr), cat_label
+    return Image.fromarray(new_arr), cat_label
 
 poisoned_clients_ids = list(flex_dataset.keys())[:NUM_POISONED]
 flex_dataset = flex_dataset.apply(poison, node_ids=poisoned_clients_ids)

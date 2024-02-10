@@ -111,7 +111,7 @@ def get_clients_weights(client_flex_model: FlexModel):
     weight_dict = client_flex_model["model"].state_dict()
     server_dict = client_flex_model["server_model"].state_dict()
     dev = [weight_dict[name] for name in weight_dict][0].get_device()
-    dev = "cuda" if dev == -1 else "cuda"
+    dev = "cpu" if dev == -1 else "cuda"
     return [weight_dict[name] - server_dict[name].to(dev) for name in weight_dict]
 
 get_clients_weights_block = collect_to_send_wrapper(get_clients_weights)
