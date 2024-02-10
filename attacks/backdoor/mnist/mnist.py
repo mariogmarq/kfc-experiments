@@ -383,8 +383,8 @@ def run_pofl():
         dump_metric(f"pofl-backdoor-{i}.json", backdoor_metrics)
 
 def main():
-    #run_pow()
-    #run_pofl()
+    run_pow()
+    run_pofl()
     run_server_pool()
         
 if __name__ == "__main__":

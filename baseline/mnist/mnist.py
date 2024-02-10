@@ -42,26 +42,35 @@ class Metrics:
     n_round: int
     pofl: Optional[PoFLMetric] = None
 
-
-class SimpleNet(nn.Module):
+class CNNModel(nn.Module):
     def __init__(self, num_classes=10):
         super().__init__()
+        self.cnn1 = nn.Sequential(
+            nn.Conv2d(1, 32, 3, padding=1),
+            nn.ReLU(),
+        )
+        self.cnn2 = nn.Sequential(
+            nn.Conv2d(32, 64, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
         self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(28 * 28, 128)
-        self.fc2 = nn.Linear(128, num_classes)
-
+        self.fc = nn.Sequential(
+            nn.Linear(14*14*64, 128),
+            nn.ReLU(),
+            nn.Linear(128, num_classes),
+        )
     def forward(self, x):
+        x = self.cnn1(x)
+        x = self.cnn2(x)
         x = self.flatten(x)
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.fc2(x)
-        return F.log_softmax(x, dim=1)
+        return self.fc(x)
 
 @init_server_model
 def build_server_model():
     server_flex_model = FlexModel()
 
-    server_flex_model["model"] = SimpleNet()
+    server_flex_model["model"] = CNNModel()
     # Required to store this for later stages of the FL training process
     server_flex_model["criterion"] = torch.nn.CrossEntropyLoss()
     server_flex_model["optimizer_func"] = torch.optim.Adam

@@ -31,20 +31,29 @@ class Metrics:
     n_round: int
     pofl: Optional[PoFLMetric] = None
 
-
-class SimpleNet(nn.Module):
+class CNNModel(nn.Module):
     def __init__(self, num_classes=10):
         super().__init__()
+        self.cnn1 = nn.Sequential(
+            nn.Conv2d(1, 32, 3, padding=1),
+            nn.ReLU(),
+        )
+        self.cnn2 = nn.Sequential(
+            nn.Conv2d(32, 64, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
         self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(28 * 28, 128)
-        self.fc2 = nn.Linear(128, num_classes)
-
+        self.fc = nn.Sequential(
+            nn.Linear(14*14*64, 128),
+            nn.ReLU(),
+            nn.Linear(128, num_classes),
+        )
     def forward(self, x):
+        x = self.cnn1(x)
+        x = self.cnn2(x)
         x = self.flatten(x)
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.fc2(x)
-        return F.log_softmax(x, dim=1)
+        return self.fc(x)
 
 trainset = torchvision.datasets.MNIST(root='./data', train=True,
                                         download=True, transform=mnist_transforms)
@@ -62,7 +71,7 @@ def dump_metric(file_name: str, metrics: List[Metrics]):
 
 if __name__ == "__main__":
     metrics = []
-    model = SimpleNet()
+    model = CNNModel()
     optimizer = torch.optim.Adam(model.parameters())
     criterion = torch.nn.CrossEntropyLoss()
     stopper = EarlyStopping(5, 0.01)
