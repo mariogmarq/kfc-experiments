@@ -170,7 +170,9 @@ data/
 
 # Slurm
 *.out
+run-*.sh
 
+# Random stuff
 img_align_celeba
 collected_data/
 *.txt
