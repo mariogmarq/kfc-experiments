@@ -1,13 +1,12 @@
 from PIL import Image
 import torch
-from torchvision import datasets, transforms
+from torchvision import datasets
 from flex.data import Dataset, FedDatasetConfig, FedDataDistribution
 from flex.model import FlexModel
 from flex.pool import (FlexPool, collect_clients_weights, fed_avg, init_server_model)
 import numpy as np
 from torch.utils.data import DataLoader
-from torchvision import transforms
-from torchvision.models import resnet18
+from torchvision.models import efficientnet_b4, EfficientNet_B4_Weights
 from tqdm import tqdm
 
 from flexBlock.pool import (BlockchainPool, PoFLBlockchainPool,
@@ -15,7 +14,7 @@ from flexBlock.pool import (BlockchainPool, PoFLBlockchainPool,
                             collect_to_send_wrapper)
 from attacks.utils import *
 
-CLIENTS_PER_ROUND = 40
+CLIENTS_PER_ROUND = 30
 NUM_POISONED = 10
 EPOCHS = 5
 N_MINERS = 2
@@ -67,20 +66,14 @@ flex_dataset = flex_dataset.apply(poison, node_ids=poisoned_clients_ids)
 
 poisoned_test_data = poison(test_data, prob=0.3)
 
-cifar_transforms = transforms.Compose(
-    [
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-    ]
-)
+cifar_transforms = EfficientNet_B4_Weights.DEFAULT.transforms()
 
 def get_model(num_classes=10):
-    resnet_model = resnet18(weights="DEFAULT")
-    for p in resnet_model.parameters():
+    efficient_model = efficientnet_b4(weights="DEFAULT")
+    for p in efficient_model.parameters():
         p.requires_grad = False
-    resnet_model.fc = torch.nn.Linear(resnet_model.fc.in_features, num_classes)
-    return resnet_model
+    efficient_model.fc = torch.nn.Linear(efficient_model.classifier[1].in_features, num_classes)
+    return efficient_model
 
 
 @init_server_model
@@ -116,8 +109,8 @@ def train(client_flex_model: FlexModel, client_data: Dataset):
 
 @collect_clients_weights
 def get_clients_weights(client_flex_model: FlexModel):
-    weight_dict = client_flex_model["model"].fc.state_dict()
-    server_dict = client_flex_model["server_model"].fc.state_dict()
+    weight_dict = client_flex_model["model"].classifier[1].state_dict()
+    server_dict = client_flex_model["server_model"].classifier[1].state_dict()
     dev = [weight_dict[name] for name in weight_dict][0].get_device()
     dev = "cpu" if dev == -1 else "cuda"
     return [weight_dict[name] - server_dict[name].to(dev) for name in weight_dict]
@@ -127,8 +120,8 @@ get_clients_weights_block = collect_to_send_wrapper(get_clients_weights)
 @collect_clients_weights
 def get_poisoned_weights(client_flex_model: FlexModel, boosting=None):
     boosting_coef = boosting[client_flex_model.actor_id] if boosting is not None else DEFAULT_BOOSTING
-    weight_dict = client_flex_model["model"].fc.state_dict()
-    server_dict = client_flex_model["server_model"].fc.state_dict()
+    weight_dict = client_flex_model["model"].classifier[1].state_dict()
+    server_dict = client_flex_model["server_model"].classifier[1].state_dict()
     dev = [weight_dict[name] for name in weight_dict][0].get_device()
     dev = "cpu" if dev == -1 else "cuda"
     return apply_boosting([weight_dict[name] - server_dict[name].to(dev) for name in weight_dict], boosting_coef)
@@ -140,7 +133,7 @@ def set_agreggated_weights_to_server(server_flex_model: FlexModel, aggregated_we
     dev = aggregated_weights[0].get_device()
     dev = "cpu" if dev == -1 else "cuda"
     with torch.no_grad():
-        weight_dict = server_flex_model["model"].fc.state_dict()
+        weight_dict = server_flex_model["model"].classifier[1].state_dict()
         for layer_key, new in zip(weight_dict, aggregated_weights):
             weight_dict[layer_key].copy_(weight_dict[layer_key].to(dev) + new)
 

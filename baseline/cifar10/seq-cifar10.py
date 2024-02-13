@@ -4,14 +4,12 @@ from typing import List, Optional
 
 import torch
 from attacks.utils import EarlyStopping
-from torchvision import transforms, datasets
-from torchvision.models import resnet18
+from torchvision import datasets
+from torchvision.models import efficientnet_b4, EfficientNet_B4_Weights
 from tqdm import tqdm
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-cifar_transforms = transforms.Compose(
-    [transforms.Resize((224, 224)), transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-)
+cifar_transforms = EfficientNet_B4_Weights.DEFAULT.transforms()
 
 train_data = datasets.CIFAR10(
     root=".",
@@ -41,11 +39,11 @@ class Metrics:
 
 
 def get_model(num_classes=10):
-    resnet_model = resnet18(weights="DEFAULT")
-    for p in resnet_model.parameters():
+    efficient_model = efficientnet_b4(weights="DEFAULT")
+    for p in efficient_model.parameters():
         p.requires_grad = False
-    resnet_model.fc = torch.nn.Linear(resnet_model.fc.in_features, num_classes)
-    return resnet_model
+    efficient_model.classifier[1] = torch.nn.Linear(efficient_model.classifier[1].in_features, num_classes)
+    return efficient_model
 
 trainloader = torch.utils.data.DataLoader(train_data, batch_size=20,
                                           shuffle=True, num_workers=2)

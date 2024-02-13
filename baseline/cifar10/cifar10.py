@@ -4,14 +4,13 @@ from dataclasses import asdict, dataclass
 from typing import List, Optional
 
 import torch
-from torchvision import datasets, transforms
+from torchvision import datasets
 from flex.data import Dataset, FedDatasetConfig, FedDataDistribution
 from flex.model import FlexModel
 from flex.pool import (FlexPool, collect_clients_weights, deploy_server_model,
                        fed_avg, init_server_model, set_aggregated_weights)
 from torch.utils.data import DataLoader
-from torchvision import transforms
-from torchvision.models import resnet18
+from torchvision.models import efficientnet_b4, EfficientNet_B4_Weights
 from tqdm import tqdm
 
 from flexBlock.pool import (BlockchainPool, PoFLBlockchainPool,
@@ -19,7 +18,7 @@ from flexBlock.pool import (BlockchainPool, PoFLBlockchainPool,
                             collect_to_send_wrapper, deploy_server_to_miner)
 from attacks.utils import EarlyStopping
 
-CLIENTS_PER_ROUND = 40
+CLIENTS_PER_ROUND = 30
 EPOCHS = 5
 N_MINERS = 2
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -48,14 +47,6 @@ flex_dataset = FedDataDistribution.from_config(
     centralized_data=Dataset.from_torchvision_dataset(train_data), config=config
 )
 
-cifar_transforms = transforms.Compose(
-    [
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-    ]
-)
-
 @dataclass
 class PoFLMetric:
     aggregated: bool
@@ -69,12 +60,14 @@ class Metrics:
     pofl: Optional[PoFLMetric] = None
 
 
+cifar_transforms = EfficientNet_B4_Weights.DEFAULT.transforms()
+
 def get_model(num_classes=10):
-    resnet_model = resnet18(weights="DEFAULT")
-    for p in resnet_model.parameters():
+    efficient_model = efficientnet_b4(weights='DEFAULT')
+    for p in efficient_model.parameters():
         p.requires_grad = False
-    resnet_model.fc = torch.nn.Linear(resnet_model.fc.in_features, num_classes)
-    return resnet_model
+    efficient_model.classifier[1] = torch.nn.Linear(efficient_model.classifier[1].in_features, num_classes)
+    return efficient_model
 
 @init_server_model
 def build_server_model():
@@ -120,7 +113,7 @@ def train(client_flex_model: FlexModel, client_data: Dataset):
 
 @collect_clients_weights
 def get_clients_weights(client_flex_model: FlexModel):
-    weight_dict = client_flex_model["model"].state_dict()
+    weight_dict = client_flex_model["model"].classifier[1].state_dict()
     return [weight_dict[name] for name in weight_dict]
 
 get_clients_weights_block = collect_to_send_wrapper(get_clients_weights)
@@ -179,7 +172,7 @@ def obtain_metrics(server_flex_model: FlexModel, data):
 @set_aggregated_weights
 def set_agreggated_weights_to_server(server_flex_model: FlexModel, aggregated_weights):
     with torch.no_grad():
-        weight_dict = server_flex_model["model"].state_dict()
+        weight_dict = server_flex_model["model"].classifier[1].state_dict()
         for layer_key, new in zip(weight_dict, aggregated_weights):
             weight_dict[layer_key].copy_(new)
 
@@ -314,8 +307,8 @@ def run_pofl():
         dump_metric(f"pofl-{i}.json", metrics)
 
 def main():
-    run_pofl()
-    run_pow()
+    #run_pofl()
+    #run_pow()
     run_server_pool()
         
 if __name__ == "__main__":
