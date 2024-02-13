@@ -9,7 +9,7 @@ from flex.pool import (FlexPool, collect_clients_weights, fed_avg, init_server_m
 from attacks.utils import *
 from flexBlock.pool import (BlockchainPool, PoFLBlockchainPool,
                             PoWBlockchainPool,
-                            collect_to_send_wrapper, deploy_server_to_miner)
+                            collect_to_send_wrapper)
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
@@ -106,9 +106,6 @@ def build_server_model():
     server_flex_model["optimizer_kwargs"] = {}
     return server_flex_model
 
-
-copy_server_model_to_clients_block = deploy_server_to_miner(copy_server_model_to_clients)
-
 def train(client_flex_model: FlexModel, client_data: Dataset):
     train_dataset = client_data.to_torchvision_dataset(transform=mnist_transforms)
     client_dataloader = DataLoader(train_dataset, batch_size=20)
@@ -185,7 +182,7 @@ def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 100):
 
     target_acc = target_acc
 
-    for i in tqdm(range(1), "WARMUP POFL"):
+    for i in tqdm(range(3), "WARMUP POFL"):
         selected_clean = clean_clients.select(SANE_PER_ROUND)
         pool.servers.map(copy_server_model_to_clients_block, selected_clean)
         selected_clean.map(train)
@@ -195,7 +192,6 @@ def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 100):
         if aggregated:
             a = max(list(map(lambda x: x[1], pool.servers.map(obtain_metrics))))
             target_acc = a + (1 - a)*0.1
-            break
 
     for i in tqdm(range(n_rounds)):
         selected_clean = clean_clients.select(SANE_PER_ROUND)
@@ -245,18 +241,22 @@ def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 100):
 def train_pos_pow(pool: BlockchainPool, n_rounds=100):
     metrics: List[Metrics] = []
     poisoned_metrics: List[Metrics] = []
-    stopper = EarlyStopping(N_MINERS*3, delta=0.01, min_rounds=N_MINERS*10)
+    stopper = EarlyStopping(N_MINERS*3, delta=0.01)
 
     poisoned_clients = pool.clients.select(lambda client_id, _: client_id in poisoned_clients_ids)
     clean_clients = pool.clients.select(lambda client_id, _: client_id not in poisoned_clients_ids)       
 
-    for i in tqdm(range(1), "WARMUP POW"):
+    for i in tqdm(range(3), "WARMUP POW"):
         selected_clean = clean_clients.select(SANE_PER_ROUND)
-        pool.servers.map(copy_server_model_to_clients, selected_clean)
+        pool.servers.map(copy_server_model_to_clients_block, selected_clean)
         selected_clean.map(train)
         pool.aggregators.map(get_clients_weights_block, selected_clean)
         pool.aggregate(fed_avg, set_agreggated_weights_to_server)
         clean_up_models(selected_clean)
+    
+    round_metrics = pool.servers.map(obtain_metrics)
+    for (loss, acc) in round_metrics:
+        print(f"loss: {loss:7} acc: {acc:7}", flush=True)
 
     for i in tqdm(range(n_rounds), "POS/POW"):
         selected_clean = clean_clients.select(SANE_PER_ROUND)

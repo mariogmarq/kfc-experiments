@@ -9,7 +9,7 @@ from flex.pool import (FlexPool, collect_clients_weights, fed_avg, init_server_m
 from attacks.utils import *
 from flexBlock.pool import (BlockchainPool, PoFLBlockchainPool,
                             PoWBlockchainPool,
-                            collect_to_send_wrapper, deploy_server_to_miner)
+                            collect_to_send_wrapper)
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
