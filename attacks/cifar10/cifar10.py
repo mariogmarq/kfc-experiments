@@ -54,7 +54,7 @@ def get_model(num_classes=10):
     efficient_model = efficientnet_b4(weights="DEFAULT")
     for p in efficient_model.parameters():
         p.requires_grad = False
-    efficient_model.fc = torch.nn.Linear(efficient_model.classifier[1].in_features, num_classes)
+    efficient_model.classifier[1] = torch.nn.Linear(efficient_model.classifier[1].in_features, num_classes)
     return efficient_model
 
 

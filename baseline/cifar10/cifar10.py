@@ -307,8 +307,8 @@ def run_pofl():
         dump_metric(f"pofl-{i}.json", metrics)
 
 def main():
-    #run_pofl()
-    #run_pow()
+    run_pofl()
+    run_pow()
     run_server_pool()
         
 if __name__ == "__main__":
