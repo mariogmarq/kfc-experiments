@@ -60,6 +60,7 @@ class EarlyStopping:
         else:
             self.best_score = score
             self.counter = 0
+            self.early_stop = False
 
 
 def print_model_size(model):
