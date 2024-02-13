@@ -93,7 +93,7 @@ copy_server_model_to_clients_block = deploy_server_to_miner(copy_server_model_to
 
 def train(client_flex_model: FlexModel, client_data: Dataset):
     train_dataset = client_data.to_torchvision_dataset(transform=cifar_transforms)
-    client_dataloader = DataLoader(train_dataset, batch_size=20)
+    client_dataloader = DataLoader(train_dataset, batch_size=256)
     model = client_flex_model["model"]
     optimizer = client_flex_model["optimizer_func"](
         model.parameters(), **client_flex_model["optimizer_kwargs"]
