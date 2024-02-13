@@ -45,7 +45,7 @@ def get_dataset():
 
     return flex_dataset, test_data
 
-flex_dataset, test_data = get_dataset
+flex_dataset, test_data = get_dataset()
 
 mnist_transforms = transforms.Compose(
     [transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))]
