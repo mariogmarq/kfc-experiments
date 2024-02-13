@@ -2,7 +2,7 @@ from typing import List
 
 import torch
 import torch.nn as nn
-from flex.data import Dataset, FedDataset
+from flex.data import Dataset, FedDataset, FedDatasetConfig, FedDataDistribution
 from flex.datasets import load
 from flex.model import FlexModel
 from flex.pool import (FlexPool, collect_clients_weights, fed_avg, init_server_model)
@@ -14,8 +14,8 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
 
-CLIENTS_PER_ROUND = 50
-EPOCHS = 5
+CLIENTS_PER_ROUND = 30
+EPOCHS = 10
 N_MINERS = 3
 NUM_POISONED = 100
 POISONED_PER_ROUND = 1
@@ -23,7 +23,32 @@ SANE_PER_ROUND = CLIENTS_PER_ROUND - POISONED_PER_ROUND
 DEFAULT_BOOSTING = float(CLIENTS_PER_ROUND) / float(POISONED_PER_ROUND)
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-flex_dataset, test_data = load("federated_emnist", return_test=True)
+
+def get_dataset():
+    flex_dataset, test_data = load("emnist")
+    assert isinstance(flex_dataset, Dataset)
+
+    config = FedDatasetConfig(seed=0)
+    config.replacement = False
+    config.n_nodes = 200
+
+    flex_dataset = FedDataDistribution.from_config(flex_dataset, config)
+
+    data_threshold = 30
+    # Get users with more than 30 items
+    print("All users", len(flex_dataset))
+    cids = list(flex_dataset.keys())
+    for k in cids:
+        if len(flex_dataset[k]) < data_threshold:
+            del flex_dataset[k]
+
+    print("Filtered users", len(flex_dataset))
+
+    assert isinstance(flex_dataset, FedDataset)
+
+    return flex_dataset, test_data
+
+flex_dataset, test_data = get_dataset
 mnist_transforms = transforms.Compose(
     [transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))]
 )
