@@ -317,8 +317,8 @@ def train_base(pool: FlexPool, n_rounds = 100):
     return metrics
 
 def run_server_pool():
-    flex_dataset, test_data = load("federated_emnist", return_test=True)
-    flex_dataset = flex_dataset.apply(label_flipping, node_ids=poisoned_clients_ids)
+    global flex_dataset
+    global test_data
     flex_dataset["server"] = test_data
     for i in range(3):
         print(f"[BASE] Experiment round {i}")
@@ -341,9 +341,9 @@ def run_pofl():
         dump_metric(f"pofl-{i}.json", metrics)
 
 def main():
+    run_pow()
     run_pofl()
     run_server_pool()
-    run_pow()
         
 if __name__ == "__main__":
     main()
