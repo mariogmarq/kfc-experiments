@@ -172,7 +172,7 @@ def obtain_accuracy(server_flex_model: FlexModel, test_data: Dataset):
 def obtain_backdoor_metrics(server_flex_model: FlexModel, _): return obtain_metrics(server_flex_model, poisoned_test_data)
 
 
-def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 100):
+def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 20):
     metrics: List[Metrics] = []
     poisoned_metrics: List[Metrics] = []
     stopper = EarlyStopping(N_MINERS*3, delta=0.01)
@@ -230,7 +230,7 @@ def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 100):
             print(f"BACKDOOR: loss: {loss:7} acc: {acc:7}")
             poisoned_metrics.append(Metrics(loss, acc, i, PoFLMetric(aggregated, target_acc)))
         
-        if stopper.early_stop:
+        if False:
             print(f"Early stopping at {i}")
             break
     
@@ -238,7 +238,7 @@ def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 100):
         
 
 
-def train_pos_pow(pool: BlockchainPool, n_rounds=100):
+def train_pos_pow(pool: BlockchainPool, n_rounds = 20):
     metrics: List[Metrics] = []
     poisoned_metrics: List[Metrics] = []
     stopper = EarlyStopping(N_MINERS*3, delta=0.01)
@@ -288,14 +288,14 @@ def train_pos_pow(pool: BlockchainPool, n_rounds=100):
             print(f"BACKDOOR: loss: {loss:7} acc: {acc:7}")
             poisoned_metrics.append(Metrics(loss, acc, i))
         
-        if stopper.early_stop:
+        if False:
             print(f"Early stopping at {i}")
             break
     
     return metrics, poisoned_metrics
 
 
-def train_base(pool: FlexPool, n_rounds = 100):
+def train_base(pool: FlexPool, n_rounds = 20):
     metrics: List[Metrics] = []
     poisoned_metrics: List[Metrics] = []
     stopper = EarlyStopping(7)
@@ -349,7 +349,7 @@ def train_base(pool: FlexPool, n_rounds = 100):
             print(f"BACKDOOR: loss: {loss:7} acc: {acc:7}")
             poisoned_metrics.append(Metrics(loss, acc, i))
         
-        if stopper.early_stop:
+        if False:
             print(f"Early stopping at {i}")
             break
     

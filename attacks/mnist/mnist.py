@@ -187,7 +187,7 @@ def clean_up_models(client_model: FlexModel, _):
     gc.collect()
 
 
-def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 100):
+def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 20):
     metrics: List[Metrics] = []
     stopper = EarlyStopping(N_MINERS*3, delta=0.01)
 
@@ -229,7 +229,7 @@ def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 100):
             metrics.append(Metrics(loss, acc, i, PoFLMetric(aggregated, target_acc)))
             stopper(loss)
         
-        if stopper.early_stop:
+        if False:
             print(f"Early stopping at {i}")
             break
     
@@ -237,7 +237,7 @@ def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 100):
         
 
 
-def train_pos_pow(pool: BlockchainPool, n_rounds=100):
+def train_pos_pow(pool: BlockchainPool, n_rounds = 20):
     metrics: List[Metrics] = []
     stopper = EarlyStopping(N_MINERS*3, delta=0.01)
 
@@ -269,14 +269,14 @@ def train_pos_pow(pool: BlockchainPool, n_rounds=100):
             metrics.append(Metrics(loss, acc, i))
             stopper(loss)
         
-        if stopper.early_stop:
+        if False:
             print(f"Early stopping at {i}")
             break
     
     return metrics
 
 
-def train_base(pool: FlexPool, n_rounds = 100):
+def train_base(pool: FlexPool, n_rounds = 20):
     metrics: List[Metrics] = []
     stopper = EarlyStopping(5, delta=0.01)
 
@@ -310,7 +310,7 @@ def train_base(pool: FlexPool, n_rounds = 100):
             metrics.append(Metrics(loss, acc, i))
             stopper(loss)
         
-        if stopper.early_stop:
+        if False:
             print(f"Early stopping at {i}")
             break
     

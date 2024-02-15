@@ -94,7 +94,7 @@ if __name__ == "__main__":
         test_acc /= total_count
         stopper(test_loss)
 
-        if stopper.early_stop:
+        if False:
             print(f"end at {i}")
             break
 
