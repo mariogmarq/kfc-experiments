@@ -4,7 +4,7 @@ import json
 from typing import Optional, List
 
 
-from flexBlock.pool.primitives import collect_to_send_wrapper, deploy_server_to_miner
+from flexBlock.pool.primitives import collect_to_send_wrapper, deploy_server_to_miner_wrapper
 from flexBlock.pool import BlockchainPool
 from flexBlock.pool.pool import CLIENT_CONNECTIONS
 from flex.pool import FlexPool
@@ -95,7 +95,7 @@ def copy_server_model_to_clients(server_flex_model: FlexModel):
     new_flex_model["optimizer_kwargs"] = copy.deepcopy(server_flex_model["optimizer_kwargs"])
     return new_flex_model
 
-copy_server_model_to_clients_block = deploy_server_to_miner(copy_server_model_to_clients)
+copy_server_model_to_clients_block = deploy_server_to_miner_wrapper(copy_server_model_to_clients)
 
 
 @set_aggregated_weights
