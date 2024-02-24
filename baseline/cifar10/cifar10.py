@@ -10,7 +10,7 @@ from flex.model import FlexModel
 from flex.pool import (FlexPool, collect_clients_weights, deploy_server_model,
                        fed_avg, init_server_model, set_aggregated_weights)
 from torch.utils.data import DataLoader
-from torchvision.models import efficientnet_b4, EfficientNet_B4_Weights
+from torchvision.models import efficientnet_b0, EfficientNet_B0_Weights
 from tqdm import tqdm
 
 from flexBlock.pool import (BlockchainPool, PoFLBlockchainPool,
@@ -18,7 +18,7 @@ from flexBlock.pool import (BlockchainPool, PoFLBlockchainPool,
                             collect_to_send_wrapper, deploy_server_to_miner)
 from attacks.utils import EarlyStopping
 
-CLIENTS_PER_ROUND = 30
+CLIENTS_PER_ROUND = 15
 EPOCHS = 5
 N_MINERS = 2
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -60,12 +60,10 @@ class Metrics:
     pofl: Optional[PoFLMetric] = None
 
 
-cifar_transforms = EfficientNet_B4_Weights.DEFAULT.transforms()
+cifar_transforms = EfficientNet_B0_Weights.DEFAULT.transforms()
 
 def get_model(num_classes=10):
-    efficient_model = efficientnet_b4(weights='DEFAULT')
-    for p in efficient_model.parameters():
-        p.requires_grad = False
+    efficient_model = efficientnet_b0(weights='DEFAULT')
     efficient_model.classifier[1] = torch.nn.Linear(efficient_model.classifier[1].in_features, num_classes)
     return efficient_model
 
@@ -113,7 +111,7 @@ def train(client_flex_model: FlexModel, client_data: Dataset):
 
 @collect_clients_weights
 def get_clients_weights(client_flex_model: FlexModel):
-    weight_dict = client_flex_model["model"].classifier[1].state_dict()
+    weight_dict = client_flex_model["model"].state_dict()
     return [weight_dict[name] for name in weight_dict]
 
 get_clients_weights_block = collect_to_send_wrapper(get_clients_weights)
@@ -172,7 +170,7 @@ def obtain_metrics(server_flex_model: FlexModel, data):
 @set_aggregated_weights
 def set_agreggated_weights_to_server(server_flex_model: FlexModel, aggregated_weights):
     with torch.no_grad():
-        weight_dict = server_flex_model["model"].classifier[1].state_dict()
+        weight_dict = server_flex_model["model"].state_dict()
         for layer_key, new in zip(weight_dict, aggregated_weights):
             weight_dict[layer_key].copy_(new)
 
@@ -200,12 +198,12 @@ def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 20):
         aggregated = pool.aggregate(fed_avg, set_agreggated_weights_to_server, eval_function=obtain_accuracy, eval_dataset=test_data, accuracy=target_acc)
 
         clean_up_models(selected_clients)
-
-        if aggregated:
-            a = max(list(map(lambda x: x[1], pool.servers.map(obtain_metrics))))
-            target_acc = a + 0.05
         
         round_metrics = pool.servers.map(obtain_metrics)
+
+        if aggregated:
+            a = max(list(map(lambda x: x[1], round_metrics)))
+            target_acc = a + 0.05
         
         print(f"Aggregated? {'yes' if aggregated else 'no':3} target_acc: {target_acc}")
         

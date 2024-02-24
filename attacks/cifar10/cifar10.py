@@ -4,7 +4,7 @@ from flex.data import Dataset, FedDatasetConfig, FedDataDistribution
 from flex.model import FlexModel
 from flex.pool import (FlexPool, collect_clients_weights, fed_avg, init_server_model, set_aggregated_weights)
 from torch.utils.data import DataLoader
-from torchvision.models import efficientnet_b4, EfficientNet_B4_Weights
+from torchvision.models import efficientnet_b0, EfficientNet_B0_Weights
 from tqdm import tqdm
 
 from flexBlock.pool import (BlockchainPool, PoFLBlockchainPool,
@@ -12,7 +12,7 @@ from flexBlock.pool import (BlockchainPool, PoFLBlockchainPool,
                             collect_to_send_wrapper)
 from attacks.utils import *
 
-CLIENTS_PER_ROUND = 30
+CLIENTS_PER_ROUND = 15
 NUM_POISONED = 10
 EPOCHS = 5
 N_MINERS = 2
@@ -48,12 +48,10 @@ flex_dataset = FedDataDistribution.from_config(
 poisoned_clients_ids = list(flex_dataset.keys())[:NUM_POISONED]
 flex_dataset = flex_dataset.apply(label_flipping, node_ids=poisoned_clients_ids)
 
-cifar_transforms = EfficientNet_B4_Weights.DEFAULT.transforms()
+cifar_transforms = EfficientNet_B0_Weights.DEFAULT.transforms()
 
 def get_model(num_classes=10):
-    efficient_model = efficientnet_b4(weights="DEFAULT")
-    for p in efficient_model.parameters():
-        p.requires_grad = False
+    efficient_model = efficientnet_b0(weights="DEFAULT")
     efficient_model.classifier[1] = torch.nn.Linear(efficient_model.classifier[1].in_features, num_classes)
     return efficient_model
 
@@ -91,8 +89,8 @@ def train(client_flex_model: FlexModel, client_data: Dataset):
 
 @collect_clients_weights
 def get_clients_weights(client_flex_model: FlexModel):
-    weight_dict = client_flex_model["model"].classifier[1].state_dict()
-    server_dict = client_flex_model["server_model"].classifier[1].state_dict()
+    weight_dict = client_flex_model["model"].state_dict()
+    server_dict = client_flex_model["server_model"].state_dict()
     dev = [weight_dict[name] for name in weight_dict][0].get_device()
     dev = "cpu" if dev == -1 else "cuda"
     return [weight_dict[name] - server_dict[name].to(dev) for name in weight_dict]
@@ -102,8 +100,8 @@ get_clients_weights_block = collect_to_send_wrapper(get_clients_weights)
 @collect_clients_weights
 def get_poisoned_weights(client_flex_model: FlexModel, boosting=None):
     boosting_coef = boosting[client_flex_model.actor_id] if boosting is not None else DEFAULT_BOOSTING
-    weight_dict = client_flex_model["model"].classifier[1].state_dict()
-    server_dict = client_flex_model["server_model"].classifier[1].state_dict()
+    weight_dict = client_flex_model["model"].state_dict()
+    server_dict = client_flex_model["server_model"].state_dict()
     dev = [weight_dict[name] for name in weight_dict][0].get_device()
     dev = "cpu" if dev == -1 else "cuda"
     return apply_boosting([weight_dict[name] - server_dict[name].to(dev) for name in weight_dict], boosting_coef)
@@ -115,7 +113,7 @@ def set_agreggated_weights_to_server(server_flex_model: FlexModel, aggregated_we
     dev = aggregated_weights[0].get_device()
     dev = "cpu" if dev == -1 else "cuda"
     with torch.no_grad():
-        weight_dict = server_flex_model["model"].classifier[1].state_dict()
+        weight_dict = server_flex_model["model"].state_dict()
         for layer_key, new in zip(weight_dict, aggregated_weights):
             weight_dict[layer_key].copy_(weight_dict[layer_key].to(dev) + new)
 
@@ -178,7 +176,7 @@ def clean_up_models(clients: FlexPool):
     torch.cuda.empty_cache()
 
 
-def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 20):
+def train_pofl(pool: BlockchainPool, initial_acc: float, n_rounds = 20):
     metrics: List[Metrics] = []
     stopper = EarlyStopping(N_MINERS*3, delta=0.01)
 
@@ -186,8 +184,9 @@ def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 20):
     clean_clients = pool.clients.select(lambda client_id, _: client_id not in poisoned_clients_ids)       
 
     i = 0
-    target_acc = target_acc
 
+    target_acc = initial_acc
+    
     for i in tqdm(range(n_rounds)):
         selected_clean = clean_clients.select(SANE_PER_ROUND)
         selected_poisoned = poisoned_clients.select(POISONED_PER_ROUND)
@@ -208,11 +207,11 @@ def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 20):
         clean_up_models(selected_clean)
         clean_up_models(selected_poisoned)
 
-        if aggregated:
-            a = max(list(map(lambda x: x[1], pool.servers.map(obtain_metrics))))
-            target_acc = a + 0.05
-        
         round_metrics = pool.servers.map(obtain_metrics)
+
+        if aggregated:
+            new_target_acc = max(list(map(lambda x: x[1], round_metrics)))
+            target_acc = max(target_acc, new_target_acc)
         
         print(f"Aggregated? {'yes' if aggregated else 'no':3} target_acc: {target_acc}")
         for (loss, acc) in round_metrics:
@@ -329,7 +328,7 @@ def run_pofl():
     for i in range(3):
         print(f"[POFL] Experiment round {i}")
         pool = PoFLBlockchainPool(flex_dataset, build_server_model, N_MINERS)
-        metrics = train_pofl(pool, target_acc=0.3)
+        metrics = train_pofl(pool, initial_acc=0.3)
         dump_metric(f"pofl-{i}.json", metrics)
 
 def main():
