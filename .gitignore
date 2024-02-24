@@ -160,6 +160,7 @@ __MACOSX/
 torch_datasets/
 data/
 *-batches-py/
+FashionMNIST/
 
 # Collected data
 *.json
