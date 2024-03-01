@@ -5,7 +5,6 @@ from typing import List, Optional
 import torch
 import torch.nn as nn
 from flex.data import Dataset, FedDataDistribution, FedDataset, FedDatasetConfig
-from flex.datasets import load
 from flex.model import FlexModel
 from flex.pool import (FlexPool, fed_avg, init_server_model)
 from attacks.utils import *
@@ -187,7 +186,7 @@ def clean_up_models(client_model: FlexModel, _):
     client_model.clear()
     gc.collect()
 
-def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 20):
+def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 100):
     metrics: List[Metrics] = []
     stopper = EarlyStopping(N_MINERS*3, delta=0.01)
 
@@ -223,7 +222,7 @@ def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 20):
         
 
 
-def train_pos_pow(pool: BlockchainPool, n_rounds = 20):
+def train_pos_pow(pool: BlockchainPool, n_rounds = 100):
     metrics: List[Metrics] = []
     stopper = EarlyStopping(N_MINERS*3, delta=0.01)
 
@@ -250,7 +249,7 @@ def train_pos_pow(pool: BlockchainPool, n_rounds = 20):
     return metrics
 
 
-def train_base(pool: FlexPool, n_rounds = 20):
+def train_base(pool: FlexPool, n_rounds = 100):
     metrics: List[Metrics] = []
     stopper = EarlyStopping(5, delta=0.01)
 

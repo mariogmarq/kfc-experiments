@@ -11,7 +11,9 @@ from tqdm import tqdm
 
 from flexBlock.pool import (BlockchainPool, PoFLBlockchainPool,
                             PoWBlockchainPool,
-                            collect_to_send_wrapper)
+                            )
+
+from flexBlock.pool.primitives import collect_to_send_wrapper
 from attacks.utils import *
 
 CLIENTS_PER_ROUND = 15
@@ -169,7 +171,7 @@ def obtain_accuracy(server_flex_model: FlexModel, test_data: Dataset):
 
 def obtain_backdoor_metrics(server_flex_model: FlexModel, _): return obtain_metrics(server_flex_model, poisoned_test_data)
 
-def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 20):
+def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 100):
     metrics: List[Metrics] = []
     poisoned_metrics: List[Metrics] = []
     stopper = EarlyStopping(N_MINERS*4, delta=0.01)
@@ -236,7 +238,7 @@ def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 20):
         
 
 
-def train_pos_pow(pool: BlockchainPool, n_rounds = 20):
+def train_pos_pow(pool: BlockchainPool, n_rounds = 100):
     metrics: List[Metrics] = []
     poisoned_metrics: List[Metrics] = []
     stopper = EarlyStopping(N_MINERS*5, delta=0.01)
@@ -289,7 +291,7 @@ def train_pos_pow(pool: BlockchainPool, n_rounds = 20):
     return metrics, poisoned_metrics
 
 
-def train_base(pool: FlexPool, n_rounds = 20):
+def train_base(pool: FlexPool, n_rounds = 100):
     metrics: List[Metrics] = []
     poisoned_metrics: List[Metrics] = []
     stopper = EarlyStopping(7, delta=0.01)

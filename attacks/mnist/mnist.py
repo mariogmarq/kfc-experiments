@@ -8,8 +8,8 @@ from flex.model import FlexModel
 from flex.pool import (FlexPool, collect_clients_weights, fed_avg, init_server_model)
 from attacks.utils import *
 from flexBlock.pool import (BlockchainPool, PoFLBlockchainPool,
-                            PoWBlockchainPool,
-                            collect_to_send_wrapper)
+                            PoWBlockchainPool)
+from flexBlock.pool.primitives import collect_to_send_wrapper
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
@@ -187,7 +187,7 @@ def clean_up_models(client_model: FlexModel, _):
     gc.collect()
 
 
-def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 20):
+def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 100):
     metrics: List[Metrics] = []
     stopper = EarlyStopping(N_MINERS*3, delta=0.01)
 
@@ -237,7 +237,7 @@ def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 20):
         
 
 
-def train_pos_pow(pool: BlockchainPool, n_rounds = 20):
+def train_pos_pow(pool: BlockchainPool, n_rounds = 100):
     metrics: List[Metrics] = []
     stopper = EarlyStopping(N_MINERS*3, delta=0.01)
 
@@ -276,7 +276,7 @@ def train_pos_pow(pool: BlockchainPool, n_rounds = 20):
     return metrics
 
 
-def train_base(pool: FlexPool, n_rounds = 20):
+def train_base(pool: FlexPool, n_rounds = 100):
     metrics: List[Metrics] = []
     stopper = EarlyStopping(5, delta=0.01)
 
