@@ -157,7 +157,7 @@ def clean_up_models(clients: FlexPool):
     gc.collect()
     torch.cuda.empty_cache()
 
-def _compute_clients_per_server(base_pool: BlockchainPool, client_pool: FlexPool):
+def _compute_clients_per_server(base_pool: BlockchainPool | FlexPool, client_pool: FlexPool):
     servers = base_pool.servers
     client_keys = set(client_pool._models.keys())
     rv = {}
@@ -181,6 +181,14 @@ def get_boosting_coef(base_pool: BlockchainPool, poisoned: FlexPool, clean: Flex
                 rv[model.actor_id] = (float(clean_clients) + float(poisoned_clients))/ float(poisoned_clients)
     
     return rv
+
+def pick_one_poisoned_per_miner(base_pool: BlockchainPool, poisoned: FlexPool) -> FlexPool:
+    servers_poisoned = _compute_clients_per_server(base_pool=base_pool, client_pool=poisoned)
+    selected_ids = []
+    for client_ids in servers_poisoned.values():
+        selected_ids.append(np.random.choice(client_ids))
+    
+    return poisoned.select(lambda node_id, _: node_id in selected_ids)
     
 def apply_boosting(weight_list: List, coef: float):
     set_tensorly_backend(weight_list)
@@ -192,5 +200,3 @@ def apply_boosting(weight_list: List, coef: float):
         w = weight_list[index_layer] * tl.tensor(coef, **context)
         weights.append(w)
     return weights
-
-
