@@ -157,7 +157,7 @@ def clean_up_models(clients: FlexPool):
     gc.collect()
     torch.cuda.empty_cache()
 
-def _compute_clients_per_server(base_pool: BlockchainPool | FlexPool, client_pool: FlexPool):
+def _compute_clients_per_server(base_pool: BlockchainPool, client_pool: FlexPool):
     servers = base_pool.servers
     client_keys = set(client_pool._models.keys())
     rv = {}
