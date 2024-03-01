@@ -20,7 +20,7 @@ CLIENTS_PER_ROUND = 15
 NUM_POISONED = 10
 EPOCHS = 5
 N_MINERS = 2
-POISONED_PER_ROUND = 1 # With model replacement
+POISONED_PER_ROUND = N_MINERS # With model replacement
 DEFAULT_BOOSTING = float(CLIENTS_PER_ROUND) / float(POISONED_PER_ROUND)
 SANE_PER_ROUND = CLIENTS_PER_ROUND - POISONED_PER_ROUND
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -194,7 +194,7 @@ def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 100):
 
     for i in tqdm(range(n_rounds)):
         selected_clean = clean_clients.select(SANE_PER_ROUND)
-        selected_poisoned = poisoned_clients.select(POISONED_PER_ROUND)
+        selected_poisoned = pick_one_poisoned_per_miner(pool, poisoned_clients)
 
         pool.servers.map(copy_server_model_to_clients_block, selected_clean)
         pool.servers.map(copy_server_model_to_clients_block, selected_poisoned)
@@ -256,7 +256,7 @@ def train_pos_pow(pool: BlockchainPool, n_rounds = 100):
 
     for i in tqdm(range(n_rounds), "POS/POW"):
         selected_clean = clean_clients.select(SANE_PER_ROUND)
-        selected_poisoned = poisoned_clients.select(POISONED_PER_ROUND)
+        selected_poisoned = pick_one_poisoned_per_miner(pool, poisoned_clients)
 
         pool.servers.map(copy_server_model_to_clients_block, selected_clean)
         pool.servers.map(copy_server_model_to_clients_block, selected_poisoned)
@@ -309,7 +309,7 @@ def train_base(pool: FlexPool, n_rounds = 100):
 
     for i in tqdm(range(n_rounds), "BASE"):
         selected_clean = clean_clients.select(SANE_PER_ROUND)
-        selected_poisoned = poisoned_clients.select(POISONED_PER_ROUND)
+        selected_poisoned = poisoned_clients.select(1)
 
         pool.servers.map(copy_server_model_to_clients, selected_clean)
         pool.servers.map(copy_server_model_to_clients, selected_poisoned)

@@ -18,7 +18,7 @@ CLIENTS_PER_ROUND = 30
 EPOCHS = 10
 N_MINERS = 3
 NUM_POISONED = 20
-POISONED_PER_ROUND = 1
+POISONED_PER_ROUND = N_MINERS
 SANE_PER_ROUND = CLIENTS_PER_ROUND - POISONED_PER_ROUND
 DEFAULT_BOOSTING = float(CLIENTS_PER_ROUND) / float(POISONED_PER_ROUND)
 
@@ -195,7 +195,7 @@ def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 100):
 
     for i in tqdm(range(n_rounds)):
         selected_clean = clean_clients.select(SANE_PER_ROUND)
-        selected_poisoned = poisoned_clients.select(POISONED_PER_ROUND)
+        selected_poisoned = pick_one_poisoned_per_miner(pool, poisoned_clients)
 
         pool.servers.map(copy_server_model_to_clients_block, selected_clean)
         pool.servers.map(copy_server_model_to_clients_block, selected_poisoned)
@@ -260,7 +260,7 @@ def train_pos_pow(pool: BlockchainPool, n_rounds = 100):
 
     for i in tqdm(range(n_rounds), "POS/POW"):
         selected_clean = clean_clients.select(SANE_PER_ROUND)
-        selected_poisoned = poisoned_clients.select(POISONED_PER_ROUND)
+        selected_poisoned = pick_one_poisoned_per_miner(pool, poisoned_clients)
 
         pool.servers.map(copy_server_model_to_clients_block, selected_clean)
         pool.servers.map(copy_server_model_to_clients_block, selected_poisoned)
@@ -319,7 +319,7 @@ def train_base(pool: FlexPool, n_rounds = 100):
 
     for i in tqdm(range(n_rounds), "BASE"):
         selected_clean = clean_clients.select(SANE_PER_ROUND)
-        selected_poisoned = poisoned_clients.select(POISONED_PER_ROUND)
+        selected_poisoned = poisoned_clients.select(1)
 
         pool.servers.map(copy_server_model_to_clients, selected_clean)
         pool.servers.map(copy_server_model_to_clients, selected_poisoned)
