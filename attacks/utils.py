@@ -1,5 +1,6 @@
 import copy
 from dataclasses import dataclass, asdict
+from functools import partial
 import json
 from typing import Optional, List
 
@@ -13,6 +14,7 @@ from flex.model import FlexModel
 from flex.pool.decorators import deploy_server_model, set_aggregated_weights, collect_clients_weights, aggregate_weights
 from flex.pool.aggregators import set_tensorly_backend
 from flexclash.data import data_poisoner
+from flexclash.pool import multikrum
 
 
 import numpy as np
@@ -200,3 +202,5 @@ def apply_boosting(weight_list: List, coef: float):
         w = weight_list[index_layer] * tl.tensor(coef, **context)
         weights.append(w)
     return weights
+
+krum = partial(multikrum, m=1)
