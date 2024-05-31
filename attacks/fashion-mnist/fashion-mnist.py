@@ -2,42 +2,33 @@ from typing import List
 
 import torch
 import torch.nn as nn
-from flex.data import Dataset, FedDataset, FedDatasetConfig, FedDataDistribution
+from flex.data import Dataset, FedDataDistribution, FedDataset, FedDatasetConfig
 from flex.model import FlexModel
-from flex.pool import (FlexPool, collect_clients_weights, fed_avg, init_server_model)
-from attacks.utils import *
-from flexBlock.pool import (BlockchainPool, PoFLBlockchainPool,
-                            PoWBlockchainPool)
+from flex.pool import FlexPool, collect_clients_weights, fed_avg, init_server_model
+from flexBlock.pool import BlockchainPool, PoFLBlockchainPool, PoWBlockchainPool
 from flexBlock.pool.primitives import collect_to_send_wrapper
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import FashionMNIST
 from tqdm import tqdm
 
+from attacks.utils import *
+
 CLIENTS_PER_ROUND = 30
 EPOCHS = 10
 N_MINERS = 3
 NUM_POISONED = 100
-POISONED_PER_ROUND = N_MINERS
+POISONED_PER_ROUND = 1
 SANE_PER_ROUND = CLIENTS_PER_ROUND - POISONED_PER_ROUND
 DEFAULT_BOOSTING = float(CLIENTS_PER_ROUND) / float(POISONED_PER_ROUND)
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-def get_dataset():
-    train_data = FashionMNIST(
-        root=".",
-        train=True,
-        download=True,
-        transform=None
-    )
 
-    test_data = FashionMNIST(
-        root=".",
-        train=False,
-        download=True,
-        transform=None
-    )
+def get_dataset():
+    train_data = FashionMNIST(root=".", train=True, download=True, transform=None)
+
+    test_data = FashionMNIST(root=".", train=False, download=True, transform=None)
     flex_dataset = Dataset.from_torchvision_dataset(train_data)
     test_data = Dataset.from_torchvision_dataset(test_data)
     assert isinstance(flex_dataset, Dataset)
@@ -62,6 +53,7 @@ def get_dataset():
 
     return flex_dataset, test_data
 
+
 flex_dataset, test_data = get_dataset()
 mnist_transforms = transforms.Compose(
     [transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))]
@@ -70,9 +62,12 @@ mnist_transforms = transforms.Compose(
 assert isinstance(flex_dataset, FedDataset)
 
 poisoned_clients_ids = list(flex_dataset.keys())[:NUM_POISONED]
-print(f"From a total of {len(flex_dataset.keys())} there is {NUM_POISONED} poisoned clients")
+print(
+    f"From a total of {len(flex_dataset.keys())} there is {NUM_POISONED} poisoned clients"
+)
 
 flex_dataset = flex_dataset.apply(label_flipping, node_ids=poisoned_clients_ids)
+
 
 class CNNModel(nn.Module):
     def __init__(self, num_classes=10):
@@ -82,21 +77,21 @@ class CNNModel(nn.Module):
             nn.ReLU(),
         )
         self.cnn2 = nn.Sequential(
-            nn.Conv2d(32, 64, 3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2)
+            nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2)
         )
         self.flatten = nn.Flatten()
         self.fc = nn.Sequential(
-            nn.Linear(14*14*64, 128),
+            nn.Linear(14 * 14 * 64, 128),
             nn.ReLU(),
             nn.Linear(128, num_classes),
         )
+
     def forward(self, x):
         x = self.cnn1(x)
         x = self.cnn2(x)
         x = self.flatten(x)
         return self.fc(x)
+
 
 @init_server_model
 def build_server_model():
@@ -132,14 +127,23 @@ def train(client_flex_model: FlexModel, client_data: Dataset):
 
 @collect_clients_weights
 def get_poisoned_weights(client_flex_model: FlexModel, boosting=None):
-    boosting_coef = boosting[client_flex_model.actor_id] if boosting is not None else DEFAULT_BOOSTING
+    boosting_coef = (
+        boosting[client_flex_model.actor_id]
+        if boosting is not None
+        else DEFAULT_BOOSTING
+    )
     weight_dict = client_flex_model["model"].state_dict()
     server_dict = client_flex_model["server_model"].state_dict()
     dev = [weight_dict[name] for name in weight_dict][0].get_device()
     dev = "cpu" if dev == -1 else "cuda"
-    return apply_boosting([weight_dict[name] - server_dict[name].to(dev) for name in weight_dict], boosting_coef)
+    return apply_boosting(
+        [weight_dict[name] - server_dict[name].to(dev) for name in weight_dict],
+        boosting_coef,
+    )
+
 
 get_poisoned_weights_block = collect_to_send_wrapper(get_poisoned_weights)
+
 
 def obtain_accuracy(server_flex_model: FlexModel, test_data: Dataset):
     model = server_flex_model["model"]
@@ -162,6 +166,7 @@ def obtain_accuracy(server_flex_model: FlexModel, test_data: Dataset):
 
     test_acc /= total_count
     return test_acc
+
 
 def obtain_metrics(server_flex_model: FlexModel, data):
     if data is None:
@@ -193,7 +198,6 @@ def obtain_metrics(server_flex_model: FlexModel, data):
     return test_loss, test_acc
 
 
-
 def clean_up_models(client_model: FlexModel, _):
     import gc
 
@@ -201,19 +205,26 @@ def clean_up_models(client_model: FlexModel, _):
     gc.collect()
 
 
-def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 100):
+def train_kfc(pool: BlockchainPool, target_acc: float, n_rounds=100):
     metrics: List[Metrics] = []
-    stopper = EarlyStopping(N_MINERS*3, delta=0.01)
 
-    poisoned_clients = pool.clients.select(lambda client_id, _: client_id in poisoned_clients_ids)
-    clean_clients = pool.clients.select(lambda client_id, _: client_id not in poisoned_clients_ids)       
+    poisoned_clients = pool.clients.select(
+        lambda client_id, _: client_id in poisoned_clients_ids
+    )
+    clean_clients = pool.clients.select(
+        lambda client_id, _: client_id not in poisoned_clients_ids
+    )
 
     i = 0
     target_acc = target_acc
 
     for i in tqdm(range(n_rounds)):
         selected_clean = clean_clients.select(SANE_PER_ROUND)
-        selected_poisoned = pick_one_poisoned_per_miner(pool, poisoned_clients)
+        selected_poisoned = (
+            pick_one_poisoned_per_miner(pool, poisoned_clients)
+            if N_MINERS == POISONED_PER_ROUND
+            else poisoned_clients.select(POISONED_PER_ROUND)
+        )
 
         pool.servers.map(copy_server_model_to_clients_block, selected_clean)
         pool.servers.map(copy_server_model_to_clients_block, selected_poisoned)
@@ -224,39 +235,96 @@ def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds = 100):
         boosting = get_boosting_coef(pool, selected_poisoned, selected_clean)
 
         pool.aggregators.map(get_clients_weights_block, selected_clean)
-        pool.aggregators.map(get_poisoned_weights_block, selected_poisoned, boosting=boosting)
+        pool.aggregators.map(
+            get_poisoned_weights_block, selected_poisoned, boosting=boosting
+        )
 
-        aggregated = pool.aggregate(fed_avg, set_agreggated_weights_to_server, eval_function=obtain_accuracy, eval_dataset=test_data, accuracy=target_acc)
+        aggregated = pool.aggregate(
+            krum,
+            set_agreggated_weights_to_server,
+            eval_function=obtain_accuracy,
+            eval_dataset=test_data,
+            accuracy=target_acc,
+        )
 
         selected_clean.map(clean_up_models)
         selected_poisoned.map(clean_up_models)
 
-        if aggregated:
-            a = max(list(map(lambda x: x[1], pool.servers.map(obtain_metrics))))
-            target_acc = a + (1 - a)*0.1
-        
         round_metrics = pool.servers.map(obtain_metrics)
-        
+
         print(f"Aggregated? {'yes' if aggregated else 'no':3} target_acc: {target_acc}")
-        for (loss, acc) in round_metrics:
+        for loss, acc in round_metrics:
             print(f"loss: {loss:7} acc: {acc:7}")
             metrics.append(Metrics(loss, acc, i, PoFLMetric(aggregated, target_acc)))
-            stopper(loss)
-        
-        if False:
-            print(f"Early stopping at {i}")
-            break
-    
+
     return metrics
-        
 
 
-def train_pos_pow(pool: BlockchainPool, n_rounds = 100):
+def train_pofl(pool: BlockchainPool, target_acc: float, n_rounds=100):
     metrics: List[Metrics] = []
-    stopper = EarlyStopping(N_MINERS*3, delta=0.01)
 
-    poisoned_clients = pool.clients.select(lambda client_id, _: client_id in poisoned_clients_ids)
-    clean_clients = pool.clients.select(lambda client_id, _: client_id not in poisoned_clients_ids)       
+    poisoned_clients = pool.clients.select(
+        lambda client_id, _: client_id in poisoned_clients_ids
+    )
+    clean_clients = pool.clients.select(
+        lambda client_id, _: client_id not in poisoned_clients_ids
+    )
+
+    i = 0
+    target_acc = target_acc
+
+    for i in tqdm(range(n_rounds)):
+        selected_clean = clean_clients.select(SANE_PER_ROUND)
+        selected_poisoned = (
+            pick_one_poisoned_per_miner(pool, poisoned_clients)
+            if N_MINERS == POISONED_PER_ROUND
+            else poisoned_clients.select(POISONED_PER_ROUND)
+        )
+
+        pool.servers.map(copy_server_model_to_clients_block, selected_clean)
+        pool.servers.map(copy_server_model_to_clients_block, selected_poisoned)
+
+        selected_clean.map(train)
+        selected_poisoned.map(train)
+
+        boosting = get_boosting_coef(pool, selected_poisoned, selected_clean)
+
+        pool.aggregators.map(get_clients_weights_block, selected_clean)
+        pool.aggregators.map(
+            get_poisoned_weights_block, selected_poisoned, boosting=boosting
+        )
+
+        aggregated = pool.aggregate(
+            fed_avg,
+            set_agreggated_weights_to_server,
+            eval_function=obtain_accuracy,
+            eval_dataset=test_data,
+            accuracy=target_acc,
+        )
+
+        selected_clean.map(clean_up_models)
+        selected_poisoned.map(clean_up_models)
+
+        round_metrics = pool.servers.map(obtain_metrics)
+
+        print(f"Aggregated? {'yes' if aggregated else 'no':3} target_acc: {target_acc}")
+        for loss, acc in round_metrics:
+            print(f"loss: {loss:7} acc: {acc:7}")
+            metrics.append(Metrics(loss, acc, i, PoFLMetric(aggregated, target_acc)))
+
+    return metrics
+
+
+def train_pos_pow(pool: BlockchainPool, n_rounds=100):
+    metrics: List[Metrics] = []
+    stopper = EarlyStopping(N_MINERS * 3, delta=0.01)
+
+    poisoned_clients = pool.clients.select(
+        lambda client_id, _: client_id in poisoned_clients_ids
+    )
+    clean_clients = pool.clients.select(
+        lambda client_id, _: client_id not in poisoned_clients_ids
+    )
 
     for i in tqdm(range(n_rounds), "POS/POW"):
         selected_clean = clean_clients.select(SANE_PER_ROUND)
@@ -278,28 +346,32 @@ def train_pos_pow(pool: BlockchainPool, n_rounds = 100):
 
         round_metrics = pool.servers.map(obtain_metrics)
 
-        for (loss, acc) in round_metrics:
+        for loss, acc in round_metrics:
             print(f"loss: {loss:7} acc: {acc:7}")
             metrics.append(Metrics(loss, acc, i))
             stopper(loss)
-        
+
         if False:
             print(f"Early stopping at {i}")
             break
-    
+
     return metrics
 
 
-def train_base(pool: FlexPool, n_rounds = 100):
+def train_base(pool: FlexPool, n_rounds=100):
     metrics: List[Metrics] = []
     stopper = EarlyStopping(5, delta=0.01)
 
-    poisoned_clients = pool.clients.select(lambda client_id, _: client_id in poisoned_clients_ids)
-    clean_clients = pool.clients.select(lambda client_id, _: client_id not in poisoned_clients_ids)       
+    poisoned_clients = pool.clients.select(
+        lambda client_id, _: client_id in poisoned_clients_ids
+    )
+    clean_clients = pool.clients.select(
+        lambda client_id, _: client_id not in poisoned_clients_ids
+    )
 
     for i in tqdm(range(n_rounds), "BASE"):
         selected_clean = clean_clients.select(SANE_PER_ROUND)
-        selected_poisoned = poisoned_clients.select(1)
+        selected_poisoned = poisoned_clients.select(POISONED_PER_ROUND)
 
         pool.servers.map(copy_server_model_to_clients, selected_clean)
         pool.servers.map(copy_server_model_to_clients, selected_poisoned)
@@ -313,51 +385,64 @@ def train_base(pool: FlexPool, n_rounds = 100):
         pool.aggregators.map(fed_avg)
         pool.aggregators.map(set_agreggated_weights_to_server, pool.servers)
 
-
         selected_clean.map(clean_up_models)
         selected_poisoned.map(clean_up_models)
 
         round_metrics = pool.servers.map(obtain_metrics)
 
-        for (loss, acc) in round_metrics:
+        for loss, acc in round_metrics:
             print(f"loss: {loss:7} acc: {acc:7}")
             metrics.append(Metrics(loss, acc, i))
             stopper(loss)
-        
+
         if False:
             print(f"Early stopping at {i}")
             break
-    
+
     return metrics
+
 
 def run_server_pool():
     global flex_dataset
     global test_data
     flex_dataset["server"] = test_data
-    for i in range(3):
+    for i in range(10):
         print(f"[BASE] Experiment round {i}")
         pool = FlexPool.client_server_pool(flex_dataset, build_server_model)
         metrics = train_base(pool)
         dump_metric(f"base-{i}.json", metrics)
 
+
 def run_pow():
-    for i in range(3):
+    for i in range(10):
         print(f"[POW] Experiment round {i}")
         pool = PoWBlockchainPool(flex_dataset, build_server_model, N_MINERS)
         metrics = train_pos_pow(pool)
         dump_metric(f"pow-{i}.json", metrics)
 
+
 def run_pofl():
-    for i in range(3):
+    for i in range(10):
         print(f"[POFL] Experiment round {i}")
         pool = PoFLBlockchainPool(flex_dataset, build_server_model, N_MINERS)
         metrics = train_pofl(pool, target_acc=0.4)
         dump_metric(f"pofl-{i}.json", metrics)
 
+
+def run_kfc():
+    for i in range(10):
+        print(f"[KFC] Experiment round {i}")
+        pool = PoFLBlockchainPool(flex_dataset, build_server_model, N_MINERS)
+        metrics = train_kfc(pool, target_acc=0.4)
+        dump_metric(f"kfc-{i}.json", metrics)
+
+
 def main():
-    run_pow()
+    run_kfc()
     run_pofl()
+    run_pow()
     run_server_pool()
-        
+
+
 if __name__ == "__main__":
     main()
